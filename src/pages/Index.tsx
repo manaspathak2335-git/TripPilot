@@ -1,12 +1,8 @@
 import { useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { Header } from '@/components/Header';
 import { SearchBar } from '@/components/SearchBar';
-import { FlightMap } from '@/components/FlightMap';
-import { FlightInfoPanel } from '@/components/FlightInfoPanel';
 import { WeatherWidget } from '@/components/WeatherWidget';
 import { AIChatbot } from '@/components/AIChatbot';
-import { AirportAmenitiesPanel } from '@/components/AirportAmenitiesPanel';
 import { FlightListWidget } from '@/components/FlightListWidget';
 import { Flight } from '@/data/flights';
 import { Airport } from '@/data/airports';
@@ -14,38 +10,28 @@ import { Airport } from '@/data/airports';
 const Index = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
-  const [selectedAirportCode, setSelectedAirportCode] = useState<string | null>(null);
-  const [showAmenities, setShowAmenities] = useState(false);
 
   const handleFlightSelect = (flight: Flight) => {
     setSelectedFlight(flight);
-    setShowAmenities(false);
-    setSelectedAirportCode(null);
   };
 
   const handleAirportSelect = (airport: Airport) => {
-    setSelectedAirportCode(airport.code);
-    setShowAmenities(true);
-    setSelectedFlight(null);
-  };
-
-  const handleClosePanel = () => {
-    setSelectedFlight(null);
-    setShowAmenities(false);
-    setSelectedAirportCode(null);
+    console.log('Airport selected:', airport.code);
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-background">
+    <div className="min-h-screen bg-background">
       <Header onMenuToggle={() => setIsMenuOpen(!isMenuOpen)} isMenuOpen={isMenuOpen} />
 
-      {/* Map takes full screen */}
-      <div className="fixed inset-0 pt-14">
-        <FlightMap
-          selectedFlight={selectedFlight}
-          onFlightSelect={handleFlightSelect}
-          selectedAirportCode={selectedAirportCode}
-        />
+      {/* Map placeholder - react-leaflet has compatibility issues, will be added separately */}
+      <div className="fixed inset-0 pt-14 bg-gradient-to-br from-[#0a1628] via-[#0f1f35] to-[#0a1628]">
+        <div className="w-full h-full flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-6xl mb-4">🗺️</div>
+            <p className="text-muted-foreground text-lg">Interactive Map</p>
+            <p className="text-muted-foreground/60 text-sm">Select flights from the sidebar</p>
+          </div>
+        </div>
       </div>
 
       {/* Floating UI */}
@@ -55,17 +41,24 @@ const Index = () => {
         <WeatherWidget />
       </div>
 
-      <AnimatePresence>
-        {selectedFlight && !showAmenities && (
-          <FlightInfoPanel flight={selectedFlight} onClose={handleClosePanel} />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showAmenities && selectedAirportCode && (
-          <AirportAmenitiesPanel airportCode={selectedAirportCode} onClose={handleClosePanel} />
-        )}
-      </AnimatePresence>
+      {/* Selected flight info */}
+      {selectedFlight && (
+        <div className="fixed top-20 right-4 z-20 w-80 glass-strong rounded-xl border border-border/50 p-4">
+          <h3 className="font-mono text-xl font-bold">{selectedFlight.flightNumber}</h3>
+          <p className="text-muted-foreground text-sm">{selectedFlight.airline}</p>
+          <div className="mt-3 flex items-center gap-2">
+            <span className="font-mono">{selectedFlight.origin}</span>
+            <span>→</span>
+            <span className="font-mono">{selectedFlight.destination}</span>
+          </div>
+          <p className="mt-2 text-sm">Status: <span className="text-primary">{selectedFlight.status}</span></p>
+          {selectedFlight.status === 'In Air' && (
+            <div className="mt-2 text-xs text-muted-foreground">
+              Alt: {selectedFlight.altitude.toLocaleString()} ft • Speed: {selectedFlight.speed} kts
+            </div>
+          )}
+        </div>
+      )}
 
       <AIChatbot />
     </div>
