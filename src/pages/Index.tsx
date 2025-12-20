@@ -4,34 +4,36 @@ import { SearchBar } from '@/components/SearchBar';
 import { WeatherWidget } from '@/components/WeatherWidget';
 import { AIChatbot } from '@/components/AIChatbot';
 import { FlightListWidget } from '@/components/FlightListWidget';
+import { FlightMap } from '@/components/FlightMap';
 import { Flight } from '@/data/flights';
 import { Airport } from '@/data/airports';
 
 const Index = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
+  const [selectedAirportCode, setSelectedAirportCode] = useState<string | null>(null);
 
   const handleFlightSelect = (flight: Flight) => {
     setSelectedFlight(flight);
+    setSelectedAirportCode(null);
   };
 
   const handleAirportSelect = (airport: Airport) => {
-    console.log('Airport selected:', airport.code);
+    setSelectedAirportCode(airport.code);
+    setSelectedFlight(null);
   };
 
   return (
     <div className="min-h-screen bg-background">
       <Header onMenuToggle={() => setIsMenuOpen(!isMenuOpen)} isMenuOpen={isMenuOpen} />
 
-      {/* Map placeholder - react-leaflet has compatibility issues, will be added separately */}
-      <div className="fixed inset-0 pt-14 bg-gradient-to-br from-[#0a1628] via-[#0f1f35] to-[#0a1628]">
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-6xl mb-4">🗺️</div>
-            <p className="text-muted-foreground text-lg">Interactive Map</p>
-            <p className="text-muted-foreground/60 text-sm">Select flights from the sidebar</p>
-          </div>
-        </div>
+      {/* Interactive Map */}
+      <div className="fixed inset-0 pt-14">
+        <FlightMap
+          selectedFlight={selectedFlight}
+          onFlightSelect={handleFlightSelect}
+          selectedAirportCode={selectedAirportCode}
+        />
       </div>
 
       {/* Floating UI */}
