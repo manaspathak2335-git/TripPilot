@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Flight } from '@/data/flights';
-import { airports, getAirportByCode } from '@/data/airports';
+import { airports } from '@/data/airports';
 import { getWeatherByAirport } from '@/data/weather';
 
 interface FlightMapProps {
@@ -33,27 +33,25 @@ export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode 
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
-  const animatedMarkerRef = useRef<maplibregl.Marker | null>(null);
-  const animFrameRef = useRef<number | null>(null);
+  const airportMarkersRef = useRef<maplibregl.Marker[]>([]);
 
-  // --- NEW: State for Live API Data ---
+  // State for Live API Data
   const [liveFlights, setLiveFlights] = useState<Flight[]>([]);
 
-  // --- NEW: Fetch Real Data from Python Backend ---
+  // 1. Fetch Real Data from Python Backend
   useEffect(() => {
     const fetchLiveFlights = async () => {
       try {
-        // Calling your Python Backend
         const response = await fetch('http://localhost:8000/api/flights/active');
         const data = await response.json();
         
         // Transform Backend Data to Frontend 'Flight' Structure
-        const mappedFlights: Flight[] = data.flights.map((f: any, index: number) => ({
-          id: f.icao24 || `live-${index}`,
+        const mappedFlights: Flight[] = data.flights.map((f: any) => ({
+          id: f.icao24,
           flightNumber: f.callsign || 'N/A',
-          airline: "Live Traffic", // OpenSky basic API doesn't give airline, setting default
-          origin: "DEL", // Placeholder to prevent crash
-          destination: "BOM", // Placeholder
+          airline: f.callsign ? f.callsign.substring(0, 3) : "Unknown",
+          origin: "Unknown", 
+          destination: "Unknown",
           scheduledDeparture: "Now",
           scheduledArrival: "TBD",
           duration: "N/A",
@@ -61,27 +59,23 @@ export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode 
           price: 0,
           currentLat: f.lat,
           currentLng: f.lon,
-          altitude: 30000, // Default if missing
-          heading: 0,
-          speed: 450
+          altitude: f.altitude || 30000,
+          heading: f.heading || 0,
+          speed: f.velocity ? Math.round(f.velocity * 3.6) : 800 // m/s to km/h
         }));
         
         setLiveFlights(mappedFlights);
       } catch (error) {
         console.error("Failed to fetch live flights:", error);
-        // Optional: fallback to empty or keep previous state
       }
     };
 
-    // Initial fetch
     fetchLiveFlights();
-    
-    // Poll every 5 seconds for live movement
-    const interval = setInterval(fetchLiveFlights, 5000);
+    const interval = setInterval(fetchLiveFlights, 5000); // Poll every 5s
     return () => clearInterval(interval);
   }, []);
 
-  // Initialize Map
+  // 2. Initialize Map
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
@@ -111,28 +105,27 @@ export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode 
       },
       center: [78.9629, 20.5937], // India center
       zoom: 4.5,
-      pitch: 0,
-      bearing: 0
     });
 
     map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
 
     return () => {
-      markersRef.current.forEach(m => m.remove());
       map.current?.remove();
       map.current = null;
     };
   }, []);
 
-  // Update Markers (Airports + Flights)
+  // 3. Update Markers (Airports + Flights)
   useEffect(() => {
     if (!map.current) return;
 
-    // Clear existing markers
+    // Cleanup old markers
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
+    airportMarkersRef.current.forEach(m => m.remove());
+    airportMarkersRef.current = [];
 
-    // 1. Add Airport Markers (Static)
+    // Add Airport Markers (Static)
     airports.forEach((airport) => {
       const weather = getWeatherByAirport(airport.code);
       const severity = weather?.severity || 'green';
@@ -147,24 +140,14 @@ export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode 
           </svg>
         </div>
       `;
-
-      const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`
-        <div style="padding:8px;background:#0f172a;color:white;border-radius:8px;font-family:system-ui;">
-          <strong style="font-size:14px;">${airport.code}</strong> - ${airport.city}
-          ${weather ? `<p style="margin:4px 0 0;font-size:12px;">${weather.icon} ${weather.temperature}°C - ${weather.condition}</p>` : ''}
-        </div>
-      `);
-
+      
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat([airport.lng, airport.lat])
-        .setPopup(popup)
         .addTo(map.current!);
-
-      markersRef.current.push(marker);
+      airportMarkersRef.current.push(marker);
     });
 
-    // 2. Add LIVE Flight Markers (Dynamic)
-    // We use liveFlights if available, otherwise fallback is unnecessary as initial state is []
+    // Add LIVE Flight Markers
     liveFlights.forEach((flight) => {
       const color = getStatusColor(flight.status);
       const rotation = (flight.heading || 0) - 90; 
@@ -185,8 +168,8 @@ export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode 
       const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`
         <div style="padding:8px;background:#0f172a;color:white;border-radius:8px;font-family:system-ui;">
           <strong style="font-size:14px;">${flight.flightNumber}</strong>
-          <p style="margin:4px 0 0;font-size:12px;">${flight.origin} → ${flight.destination}</p>
-          <p style="margin:2px 0 0;font-size:11px;color:#94a3b8;">Status: ${flight.status}</p>
+          <p style="margin:4px 0 0;font-size:12px;">Alt: ${flight.altitude}ft</p>
+          <p style="margin:2px 0 0;font-size:11px;color:#94a3b8;">Speed: ${flight.speed} km/h</p>
         </div>
       `);
 
@@ -199,21 +182,5 @@ export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode 
     });
   }, [liveFlights, onFlightSelect]); 
 
-  // Flight Path Drawing Logic (Kept largely same, just guards against null map)
-  useEffect(() => {
-    if (!map.current || !selectedFlight) return;
-
-    // ... (Your existing path drawing logic here)
-    // I'm keeping your previous logic active by reference, 
-    // but cleaning up markers is handled above.
-    
-    // NOTE: Path drawing relies on Origin/Dest coordinates.
-    // Since OpenSky doesn't give us Route info in the free API,
-    // lines might not appear for "Live Traffic" unless you hardcode lat/lngs for Origin/Dest.
-    
-  }, [selectedFlight]);
-
-  return (
-    <div ref={mapContainer} className="w-full h-full" />
-  );
+  return <div ref={mapContainer} className="w-full h-full" />;
 }

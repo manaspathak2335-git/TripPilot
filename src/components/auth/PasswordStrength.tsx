@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Check, X } from 'lucide-react';
-import { PasswordStrength as PasswordStrengthType } from '@/types/auth.types';
+import { PasswordStrength as PasswordStrengthType } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 
 interface PasswordStrengthProps {
