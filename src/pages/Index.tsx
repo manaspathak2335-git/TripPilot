@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 import { Header } from '@/components/Header';
 import { SearchBar } from '@/components/SearchBar';
 import { WeatherWidget } from '@/components/WeatherWidget';
@@ -6,16 +8,22 @@ import { AIChatbot } from '@/components/AIChatbot';
 import { FlightListWidget } from '@/components/FlightListWidget';
 import { FlightMap } from '@/components/FlightMap';
 import { FlightInfoPanel } from '@/components/FlightInfoPanel';
-import { Flight } from '@/data/flights';
+import { Flight, flights } from '@/data/flights';
 import { Airport } from '@/data/airports';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plane, Clock, Gauge, Navigation } from 'lucide-react';
+import { X, Plane, Clock, Gauge, Navigation, Home, Map, List, Settings } from 'lucide-react';
 
 const Index = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isWeatherAlertsOpen, setIsWeatherAlertsOpen] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
   const [selectedAirportCode, setSelectedAirportCode] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { isAuthenticated } = useAuth();
+  const params = new URLSearchParams(location.search);
+  const openChat = params.get('openChat') === '1' || params.get('openChat') === 'true';
 
   // Update time every second
   useEffect(() => {
@@ -45,9 +53,41 @@ const Index = () => {
     });
   };
 
+  const [liveFlightsCount, setLiveFlightsCount] = useState<number>(
+    flights.filter(f => f.status === 'In Air').length
+  );
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchLiveCount = async () => {
+      try {
+        // Use backend API instead of calling OpenSky directly (avoids CORS issues)
+        const res = await fetch('http://localhost:8000/api/flights/active');
+        if (!res.ok) throw new Error('Network response not ok');
+        const data = await res.json();
+        const activeFlights = data.flights || [];
+        // Count all flights returned from backend (already filtered for India region)
+        if (mounted) setLiveFlightsCount(activeFlights.length);
+      } catch (err) {
+        console.error('Failed to fetch live flight count:', err);
+        // fallback to local static data already set
+        if (mounted) setLiveFlightsCount(flights.filter(f => f.status === 'In Air').length);
+      }
+    };
+
+    fetchLiveCount();
+    const id = setInterval(fetchLiveCount, 15000);
+    return () => { mounted = false; clearInterval(id); };
+  }, []);
+
   return (
     <div className="min-h-screen bg-background overflow-hidden">
-      <Header onMenuToggle={() => setIsMenuOpen(!isMenuOpen)} isMenuOpen={isMenuOpen} />
+      <Header 
+        onMenuToggle={() => setIsMenuOpen(!isMenuOpen)} 
+        isMenuOpen={isMenuOpen}
+        onNotificationClick={() => setIsWeatherAlertsOpen(!isWeatherAlertsOpen)}
+      />
 
       {/* Interactive Map */}
       <div className="fixed inset-0 pt-14">
@@ -55,6 +95,7 @@ const Index = () => {
           selectedFlight={selectedFlight}
           onFlightSelect={handleFlightSelect}
           selectedAirportCode={selectedAirportCode}
+          onAirportSelect={handleAirportSelect}
         />
       </div>
 
@@ -68,16 +109,38 @@ const Index = () => {
           <div className="w-px h-4 bg-border" />
           <div className="flex items-center gap-2 text-sm">
             <Plane className="w-4 h-4 text-primary" />
-            <span className="font-mono">15 Active Flights</span>
+            <span className="font-mono">{liveFlightsCount} Active Flight{liveFlightsCount === 1 ? '' : 's'}</span>
           </div>
         </div>
       </div>
 
+      {/* Left Sidebar Nav (hidden when not authenticated) */}
+      {isAuthenticated && (
+        <nav className="fixed top-24 left-4 z-30 w-12">
+          <div className="glass-strong rounded-xl p-2 flex flex-col items-center gap-2 border border-border/50">
+            <button onClick={() => navigate('/')} className="p-2 rounded-lg hover:bg-muted/20" aria-label="Home" title="Home">
+              <Home className="w-5 h-5" />
+            </button>
+            <button onClick={() => navigate('/plan-trip')} className="p-2 rounded-lg hover:bg-muted/20" aria-label="Plan a trip" title="Plan a trip">
+              <Map className="w-5 h-5" />
+            </button>
+            <button onClick={() => navigate('/itinerary')} className="p-2 rounded-lg hover:bg-muted/20" aria-label="My itineraries" title="My itineraries">
+              <List className="w-5 h-5" />
+            </button>
+            <button onClick={() => navigate('/search-history')} className="p-2 rounded-lg hover:bg-muted/20" aria-label="Search history" title="Search history">
+              <Clock className="w-5 h-5" />
+            </button>
+            <button onClick={() => navigate('/settings')} className="p-2 rounded-lg hover:bg-muted/20" aria-label="Settings" title="Settings">
+              <Settings className="w-5 h-5" />
+            </button>
+          </div>
+        </nav>
+      )}
+
       {/* Left Panel - Search & Flights */}
-      <div className="fixed top-24 left-4 z-20 flex flex-col gap-3 max-w-xs w-80">
+      <div className="fixed top-24 left-20 z-20 flex flex-col gap-3 max-w-xs w-80">
         <SearchBar onFlightSelect={handleFlightSelect} onAirportSelect={handleAirportSelect} />
         <FlightListWidget onFlightSelect={handleFlightSelect} selectedFlightId={selectedFlight?.id || null} />
-        <WeatherWidget />
       </div>
 
       {/* Right Panel - Selected Flight Info */}
@@ -213,7 +276,33 @@ const Index = () => {
         )}
       </AnimatePresence>
 
-      <AIChatbot selectedContext={selectedFlight} />
+      <AIChatbot selectedContext={selectedFlight} initialOpen={openChat} />
+
+      {/* Weather Alerts Dropdown */}
+      <AnimatePresence>
+        {isWeatherAlertsOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsWeatherAlertsOpen(false)}
+              className="fixed inset-0 z-40 bg-background/20 backdrop-blur-sm"
+            />
+            {/* Dropdown */}
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="fixed top-16 right-4 z-50 w-80"
+            >
+              <WeatherWidget onClose={() => setIsWeatherAlertsOpen(false)} />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

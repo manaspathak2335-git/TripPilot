@@ -44,7 +44,6 @@ export const Footer = () => (
       <p>© 2024 TripPilot. Built for the Hackathon.</p>
       <div className="flex gap-4">
         <a href="#features" className="hover:text-foreground transition-colors">Features</a>
-        <a href="#demo" className="hover:text-foreground transition-colors">Demo</a>
         <a href="#faq" className="hover:text-foreground transition-colors">FAQ</a>
       </div>
     </div>

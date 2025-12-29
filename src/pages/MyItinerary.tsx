@@ -150,7 +150,7 @@ export default function MyItinerary() {
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={() => selectedTrip ? setSelectedTrip(null) : navigate('/dashboard')}
+              onClick={() => selectedTrip ? setSelectedTrip(null) : navigate('/map')}
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>

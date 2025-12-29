@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, X, Send, Bot, User, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,9 +22,10 @@ interface Message {
 // 2. Define Props Interface
 interface AIChatbotProps {
   selectedContext?: Flight | null; // Optional flight data
+  initialOpen?: boolean;
 }
 
-export const AIChatbot = ({ selectedContext }: AIChatbotProps) => {
+export const AIChatbot = ({ selectedContext, initialOpen }: AIChatbotProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -34,8 +37,11 @@ export const AIChatbot = ({ selectedContext }: AIChatbotProps) => {
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+  const { isAuthenticated, user: authUser } = useAuth();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -46,6 +52,15 @@ export const AIChatbot = ({ selectedContext }: AIChatbotProps) => {
       inputRef.current?.focus();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (initialOpen) setIsOpen(true);
+  }, [initialOpen]);
+
+  // Close auth prompt automatically when user becomes authenticated
+  useEffect(() => {
+    if (isAuthenticated) setShowAuthPrompt(false);
+  }, [isAuthenticated]);
 
   // 3. Helper to format context for the AI
   const getContextString = () => {
@@ -59,6 +74,11 @@ export const AIChatbot = ({ selectedContext }: AIChatbotProps) => {
 
   const handleSend = async () => {
     if (!input.trim()) return;
+
+    if (!isAuthenticated) {
+      setShowAuthPrompt(true);
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -95,9 +115,10 @@ export const AIChatbot = ({ selectedContext }: AIChatbotProps) => {
 
       setMessages(prev => [...prev, assistantMessage]);
 
-      const user = auth?.currentUser;
-      if (user) {
-        await addDoc(collection(db, 'users', user.uid, 'queries'), {
+      // Save query if firebase auth is present; otherwise skip persistent storage
+      const firebaseUser = auth?.currentUser;
+      if (firebaseUser) {
+        await addDoc(collection(db, 'users', firebaseUser.uid, 'queries'), {
           query: userMessage.content,
           response: assistantMessage.content,
           createdAt: serverTimestamp(),
@@ -285,6 +306,22 @@ export const AIChatbot = ({ selectedContext }: AIChatbotProps) => {
                 </Button>
               </div>
             </div>
+
+            {showAuthPrompt && (
+              <div className="px-4 pb-4">
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 flex flex-col gap-3">
+                  <div className="font-semibold">To access this feature, kindly login / sign up</div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => { setShowAuthPrompt(false); navigate('/login?next=/map&openChat=1'); }}>
+                      Login
+                    </Button>
+                    <Button onClick={() => { setShowAuthPrompt(false); navigate('/signup?next=/map&openChat=1'); }}>
+                      Sign up
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

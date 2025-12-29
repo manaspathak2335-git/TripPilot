@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, User } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -43,6 +43,10 @@ export default function Signup() {
   const { signup, loginWithGoogle, isLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const nextPath = params.get('next') || '/map';
+  const openChat = params.get('openChat');
 
   const {
     register,
@@ -77,7 +81,7 @@ export default function Signup() {
         title: 'Account created!',
         description: 'Welcome to TripPilot. Your journey begins now.',
       });
-      navigate('/dashboard');
+      navigate(openChat ? `${nextPath}?openChat=1` : nextPath);
     } catch (error) {
       toast({
         title: 'Sign up failed',
@@ -95,7 +99,7 @@ export default function Signup() {
         title: 'Welcome!',
         description: 'Account created successfully with Google.',
       });
-      navigate('/dashboard');
+      navigate(openChat ? `${nextPath}?openChat=1` : nextPath);
     } catch (error) {
       toast({
         title: 'Google sign up failed',

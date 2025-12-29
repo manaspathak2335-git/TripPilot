@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -17,7 +17,7 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { airports } from '@/data/airports';
+import { Airport } from '@/data/airports';
 
 const popularDestinations = [
   { code: 'GOI', name: 'Goa', image: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=400', price: '₹4,500' },
@@ -29,6 +29,7 @@ const popularDestinations = [
 export default function PlanTrip() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [airports, setAirports] = useState<Airport[]>([]);
   const [tripData, setTripData] = useState({
     from: '',
     to: '',
@@ -37,6 +38,22 @@ export default function PlanTrip() {
     travelers: '1',
     tripType: 'roundtrip',
   });
+
+  useEffect(() => {
+    const fetchAirports = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/airports');
+        const data = await response.json();
+        if (data.airports) {
+          setAirports(data.airports);
+        }
+      } catch (error) {
+        console.error('Failed to fetch airports:', error);
+      }
+    };
+
+    fetchAirports();
+  }, []);
 
   const handleSearch = () => {
     if (!tripData.from || !tripData.to || !tripData.departDate) {
@@ -71,7 +88,7 @@ export default function PlanTrip() {
       <header className="border-b border-border bg-card sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
+            <Button variant="ghost" size="icon" onClick={() => navigate('/map')}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div className="flex items-center gap-2">

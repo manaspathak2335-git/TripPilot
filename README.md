@@ -55,7 +55,10 @@ Create a `.env` file inside the `backend/` directory:
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
+AVIATIONSTACK_API_KEY=your_aviationstack_api_key_here
 ```
+
+> **Note**: Get your AviationStack API key from [aviationstack.com](https://aviationstack.com/)
 
 ### 1️⃣ Run the Backend (FastAPI)
 

@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import google.generativeai as genai
 import random
 import os
+import time
+import requests
 from dotenv import load_dotenv
 from FlightRadar24 import FlightRadar24API
 
@@ -12,10 +14,17 @@ load_dotenv()
 
 # --- CONFIGURATION ---
 fr_api = FlightRadar24API()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# --- SMART SORTING DATA ---
-# We use sets for O(1) lookups. "Frozenset" handles both directions (DEL->BOM or BOM->DEL).
+# Securely load keys
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+AVIATIONSTACK_API_KEY = os.getenv("AVIATIONSTACK_API_KEY")
+
+if not GEMINI_API_KEY:
+    print("❌ CRITICAL ERROR: GEMINI_API_KEY not found! Did you create the .env file?")
+if not AVIATIONSTACK_API_KEY:
+    print("⚠️ WARNING: AVIATIONSTACK_API_KEY not found! Airport data will use fallback.")
+
+# --- SMART SORTING DATA (Your Feature) ---
 BUSY_ROUTES = {
     frozenset(["DEL", "BOM"]), frozenset(["BOM", "DEL"]),
     frozenset(["DEL", "BLR"]), frozenset(["BLR", "DEL"]),
@@ -27,6 +36,11 @@ BUSY_ROUTES = {
 }
 
 MAJOR_HUBS = {"DEL", "BOM", "BLR", "HYD", "MAA", "CCU", "GOI", "PNQ", "AMD", "COK"}
+
+# --- AIRPORT CACHE (Teammate's Feature) ---
+AIRPORTS_CACHE = None
+AIRPORTS_CACHE_TIME = None
+AIRPORTS_CACHE_DURATION = 2400  # 40 minutes
 
 # Configure Gemini
 try:
@@ -61,7 +75,6 @@ class ChatRequest(BaseModel):
 def generate_simulation():
     print("⚠️ USING SIMULATION DATA (Connection Error or No Flights) ⚠️")
     flights = []
-    # Realistic backup routes matching our "Busy" logic
     backup_routes = [
         ("DEL", "BOM", "IGO202", "IndiGo"),
         ("BOM", "BLR", "AIC405", "Air India"),
@@ -87,49 +100,71 @@ def generate_simulation():
         })
     return flights
 
+# --- HELPER: GET AIRPORTS (Teammate's Feature) ---
+def get_aviationstack_airports():
+    global AIRPORTS_CACHE, AIRPORTS_CACHE_TIME
+    
+    # Check cache
+    if AIRPORTS_CACHE is not None and AIRPORTS_CACHE_TIME is not None:
+        elapsed = time.time() - AIRPORTS_CACHE_TIME
+        if elapsed < AIRPORTS_CACHE_DURATION:
+            return AIRPORTS_CACHE
+    
+    if not AVIATIONSTACK_API_KEY:
+        return AIRPORTS_CACHE if AIRPORTS_CACHE else None
+    
+    try:
+        url = "http://api.aviationstack.com/v1/airports"
+        params = {'access_key': AVIATIONSTACK_API_KEY, 'country_code': 'IN', 'limit': 100}
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if 'data' in data:
+                indian_airports = [
+                    ap for ap in data['data'] 
+                    if ap.get('country_iso2') == 'IN' or ap.get('country_code') == 'IN'
+                ]
+                if indian_airports:
+                    AIRPORTS_CACHE = indian_airports
+                    AIRPORTS_CACHE_TIME = time.time()
+                    return indian_airports
+    except Exception as e:
+        print(f"❌ AviationStack Connection Error: {e}")
+    
+    return AIRPORTS_CACHE
+
 # --- ENDPOINTS ---
 
 @app.get("/api/flights/active")
 def get_active_flights_india():
+    # --- YOUR LOGIC (FlightRadar24 + Priority Sorting) ---
     try:
-        # 1. Define Area: Box around India (North 37, South 6, West 68, East 97)
         bounds = "37,6,68,97" 
-        
-        # 2. Fetch Real Flights
         real_flights = fr_api.get_flights(bounds=bounds)
-        
         processed_flights = []
         
         for f in real_flights:
-            # --- CRASH PREVENTION CHECKS ---
             flight_num = getattr(f, 'callsign', 'Unknown')
             
-            # Safe Airline Name Extraction
             airline_name = "Unknown Airline"
             if hasattr(f, 'airline_short_name'):
                 airline_name = f.airline_short_name
             elif hasattr(f, 'airline_icao'):
                 airline_name = f.airline_icao
             
-            # Safe Route Extraction
             origin = getattr(f, 'origin_airport_iata', 'N/A')
             dest = getattr(f, 'destination_airport_iata', 'N/A')
             
-            # FILTER: Must have valid route
             if origin == 'N/A' or dest == 'N/A':
                 continue
 
-            # --- SMART SCORING LOGIC ---
-            # Calculate a "Importance Score" for sorting
+            # SCORING LOGIC
             priority_score = 0
-            
-            # Check if it's a BUSY ROUTE (e.g. DEL-BOM) -> Score 3
             if frozenset([origin, dest]) in BUSY_ROUTES:
                 priority_score = 3
-            # Check if both ends are MAJOR HUBS -> Score 2
             elif origin in MAJOR_HUBS and dest in MAJOR_HUBS:
                 priority_score = 2
-            # Check if at least one end is a HUB -> Score 1
             elif origin in MAJOR_HUBS or dest in MAJOR_HUBS:
                 priority_score = 1
             
@@ -145,15 +180,12 @@ def get_active_flights_india():
                 "altitude": f.altitude,
                 "speed": f.ground_speed, 
                 "status": "In Air",
-                "priority": priority_score # Used for sorting
+                "priority": priority_score
             })
             
         if not processed_flights:
             return {"flights": generate_simulation()}
             
-        # 3. SORTING: 
-        # First by Priority (Score), Then by Altitude (Signal Quality)
-        # We take top 50, but since they are sorted by popularity, the top 20 will be the best ones.
         sorted_flights = sorted(
             processed_flights, 
             key=lambda x: (x['priority'], x['altitude']), 
@@ -165,6 +197,26 @@ def get_active_flights_india():
     except Exception as e:
         print(f"FlightRadar Error: {e}")
         return {"flights": generate_simulation()}
+
+@app.get("/api/airports")
+def get_airports():
+    """Get Indian airports (Teammate's Endpoint)"""
+    airports_data = get_aviationstack_airports()
+    if not airports_data: return {"airports": []}
+    
+    airports = []
+    for ap in airports_data:
+        if ap.get('latitude') and ap.get('longitude'):
+            airports.append({
+                "code": ap.get('iata_code') or ap.get('icao_code', ''),
+                "name": ap.get('airport_name', 'Unknown Airport'),
+                "city": ap.get('city_name', 'Unknown City'),
+                "lat": float(ap.get('latitude', 0)),
+                "lng": float(ap.get('longitude', 0)),
+                "country": ap.get('country_name', 'India'),
+                "timezone": ap.get('timezone', 'Asia/Kolkata')
+            })
+    return {"airports": airports}
 
 @app.post("/api/track-flight")
 def track_flight(request: FlightRequest):
@@ -179,12 +231,7 @@ def chat_with_copilot(request: ChatRequest):
     
     system_instruction = """
     You are 'Captain Gemini', an expert pilot assistant for TripPilot.
-    
-    YOUR SUPERPOWERS:
-    1. REAL DATA: The 'Current Context' now contains REAL routes.
-       - If asked "Where is this going?", read the destination.
-    2. JARGON TRANSLATOR: Explain terms like "Knots" simply.
-    3. TONE: Professional, reassuring, but concise.
+    CONTEXT: Use the provided context (Origins, Destinations) to answer queries.
     """
     try:
         full_prompt = f"{system_instruction}\n\nCURRENT CONTEXT: {request.context}\n\nUSER QUESTION: {request.message}"

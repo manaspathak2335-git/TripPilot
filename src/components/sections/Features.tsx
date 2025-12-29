@@ -5,7 +5,8 @@ import {
   Map, 
   Bot, 
   MapPin, 
-  CloudSun 
+  CloudSun,
+  NotebookPen
 } from 'lucide-react';
 
 const features = [
@@ -44,6 +45,13 @@ const features = [
     color: 'text-purple-400',
     spotlightColor: 'rgba(167, 139, 250, 0.15)',
   },
+  {
+    icon: NotebookPen,
+    title: 'Plan Trips & Itineraries',
+    description: 'Plan your perfect trip with our intelligent itinerary builder and personalized travel recommendations.',
+    color: 'text-purple-400',
+    spotlightColor: 'rgba(167, 139, 250, 0.15)',
+  }
 ];
 
 export const Features = () => {

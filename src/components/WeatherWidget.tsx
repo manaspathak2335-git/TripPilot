@@ -1,9 +1,13 @@
 import { motion } from 'framer-motion';
-import { AlertTriangle, CloudRain, Cloud, Sun, Eye } from 'lucide-react';
+import { AlertTriangle, CloudRain, Cloud, Sun, Eye, X } from 'lucide-react';
 import { weatherData, getWeatherAlerts } from '@/data/weather';
 import { cn } from '@/lib/utils';
 
-export const WeatherWidget = () => {
+interface WeatherWidgetProps {
+  onClose?: () => void;
+}
+
+export const WeatherWidget = ({ onClose }: WeatherWidgetProps) => {
   const alerts = getWeatherAlerts();
 
   return (
@@ -18,7 +22,18 @@ export const WeatherWidget = () => {
           <AlertTriangle className="w-4 h-4 text-warning" />
           Weather Alerts
         </h3>
-        <span className="text-xs text-muted-foreground">{alerts.length} active</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{alerts.length} active</span>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="w-6 h-6 rounded-lg hover:bg-muted/50 flex items-center justify-center transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="p-2 max-h-48 overflow-y-auto custom-scrollbar">
