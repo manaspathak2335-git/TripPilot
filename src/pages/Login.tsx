@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -30,6 +30,10 @@ export default function Login() {
   const { login, loginWithGoogle, isLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const nextPath = params.get('next') || '/map';
+  const openChat = params.get('openChat');
 
   const {
     register,
@@ -59,7 +63,7 @@ export default function Login() {
         title: 'Welcome back!',
         description: 'You have successfully signed in.',
       });
-      navigate('/dashboard');
+      navigate(openChat ? `${nextPath}?openChat=1` : nextPath);
     } catch (error) {
       toast({
         title: 'Sign in failed',
@@ -77,7 +81,7 @@ export default function Login() {
         title: 'Welcome!',
         description: 'You have successfully signed in with Google.',
       });
-      navigate('/dashboard');
+      navigate(openChat ? `${nextPath}?openChat=1` : nextPath);
     } catch (error) {
       toast({
         title: 'Google sign in failed',

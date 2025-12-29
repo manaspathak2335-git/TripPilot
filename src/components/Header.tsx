@@ -42,7 +42,7 @@ export const Header = ({
 
         {/* Navigation - Desktop */}
         <nav className="hidden lg:flex items-center gap-1">
-          {['Flights', 'Airports', 'Weather', 'Alerts'].map(item => <Button key={item} variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground hover:bg-muted/50">
+          {['Flights', 'Airports'].map(item => <Button key={item} variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground hover:bg-muted/50">
               {item}
             </Button>)}
         </nav>
@@ -52,10 +52,6 @@ export const Header = ({
           <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
             <Bell className="w-5 h-5" />
             {hasNotification && <span className="absolute top-1 right-1 w-2 h-2 bg-warning rounded-full animate-pulse" />}
-          </Button>
-          
-          <Button variant="ghost" size="icon" className="hidden sm:flex text-muted-foreground hover:text-foreground">
-            <Settings className="w-5 h-5" />
           </Button>
 
           <Button variant="ghost" size="icon" className="lg:hidden text-muted-foreground hover:text-foreground" onClick={onMenuToggle}>

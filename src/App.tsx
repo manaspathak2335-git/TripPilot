@@ -9,7 +9,6 @@ import Landing from "./pages/Landing";
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
-import Dashboard from "./pages/Dashboard";
 import PlanTrip from "./pages/PlanTrip";
 import MyItinerary from "./pages/MyItinerary";
 import Settings from "./pages/Settings";
@@ -31,7 +30,7 @@ const App = () => (
             <Route path="/signup" element={<Signup />} />
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            {/* Dashboard removed */}
             <Route path="/plan-trip" element={<PlanTrip />} />
             <Route path="/itinerary" element={<MyItinerary />} />
             <Route path="/settings" element={<Settings />} />
