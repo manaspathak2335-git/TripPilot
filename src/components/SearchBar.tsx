@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plane, MapPin, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Flight } from '@/data/flights';
-import { airports, Airport } from '@/data/airports';
+import { Airport } from '@/data/airports';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -15,12 +15,44 @@ interface SearchBarProps {
 export const SearchBar = ({ onFlightSelect, onAirportSelect }: SearchBarProps) => {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [apiAirports, setApiAirports] = useState<Airport[]>([]);
   const [results, setResults] = useState<{ flights: Flight[]; airports: Airport[] }>({
     flights: [],
     airports: []
   });
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Fetch airports from API
+  useEffect(() => {
+    const fetchAirports = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/airports');
+        const data = await response.json();
+        if (data.airports && data.airports.length > 0) {
+          const transformedAirports: Airport[] = data.airports.map((ap: any) => ({
+            code: ap.code || '',
+            name: ap.name || 'Unknown Airport',
+            city: ap.city || 'Unknown City',
+            lat: ap.lat || 0,
+            lng: ap.lng || 0,
+            terminal: 1,
+            amenities: {
+              restaurants: 0,
+              lounges: 0,
+              shops: 0,
+              services: 0
+            }
+          }));
+          setApiAirports(transformedAirports);
+        }
+      } catch (error) {
+        console.error("Failed to fetch airports:", error);
+      }
+    };
+
+    fetchAirports();
+  }, []);
 
   useEffect(() => {
     if (query.length >= 2) {
@@ -29,7 +61,7 @@ export const SearchBar = ({ onFlightSelect, onAirportSelect }: SearchBarProps) =
       (async () => {
         const flightsArr = await api.searchFlight(query).catch(() => []);
         const q = query.toLowerCase();
-        const matchedAirports = airports.filter(
+        const matchedAirports = apiAirports.filter(
           a => a.code.toLowerCase().includes(q) || 
                a.city.toLowerCase().includes(q) ||
                a.name.toLowerCase().includes(q)
@@ -41,7 +73,7 @@ export const SearchBar = ({ onFlightSelect, onAirportSelect }: SearchBarProps) =
       setResults({ flights: [], airports: [] });
       setIsOpen(false);
     }
-  }, [query]);
+  }, [query, apiAirports]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

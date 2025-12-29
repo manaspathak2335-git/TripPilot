@@ -15,6 +15,7 @@ import { X, Plane, Clock, Gauge, Navigation, Home, Map, List, Settings } from 'l
 
 const Index = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isWeatherAlertsOpen, setIsWeatherAlertsOpen] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
   const [selectedAirportCode, setSelectedAirportCode] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -61,23 +62,15 @@ const Index = () => {
 
     const fetchLiveCount = async () => {
       try {
-        const res = await fetch('https://opensky-network.org/api/states/all');
+        // Use backend API instead of calling OpenSky directly (avoids CORS issues)
+        const res = await fetch('http://localhost:8000/api/flights/active');
         if (!res.ok) throw new Error('Network response not ok');
         const data = await res.json();
-        const states = data.states || [];
-        // OpenSky `states` entries: index 5=longitude, 6=latitude, 8=on_ground
-        // Only count aircraft that are in-air and within India's approx bounding box
-        const inAir = states.filter((s: any) => {
-          const lon = s[5];
-          const lat = s[6];
-          const onGround = s[8];
-          if (onGround) return false;
-          if (lat == null || lon == null) return false;
-          // India bounding box (approx): lat 6..36, lon 68..98
-          return lat >= 6 && lat <= 36 && lon >= 68 && lon <= 98;
-        }).length;
-        if (mounted) setLiveFlightsCount(inAir);
+        const activeFlights = data.flights || [];
+        // Count all flights returned from backend (already filtered for India region)
+        if (mounted) setLiveFlightsCount(activeFlights.length);
       } catch (err) {
+        console.error('Failed to fetch live flight count:', err);
         // fallback to local static data already set
         if (mounted) setLiveFlightsCount(flights.filter(f => f.status === 'In Air').length);
       }
@@ -90,7 +83,11 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background overflow-hidden">
-      <Header onMenuToggle={() => setIsMenuOpen(!isMenuOpen)} isMenuOpen={isMenuOpen} />
+      <Header 
+        onMenuToggle={() => setIsMenuOpen(!isMenuOpen)} 
+        isMenuOpen={isMenuOpen}
+        onNotificationClick={() => setIsWeatherAlertsOpen(!isWeatherAlertsOpen)}
+      />
 
       {/* Interactive Map */}
       <div className="fixed inset-0 pt-14">
@@ -98,6 +95,7 @@ const Index = () => {
           selectedFlight={selectedFlight}
           onFlightSelect={handleFlightSelect}
           selectedAirportCode={selectedAirportCode}
+          onAirportSelect={handleAirportSelect}
         />
       </div>
 
@@ -143,7 +141,6 @@ const Index = () => {
       <div className="fixed top-24 left-20 z-20 flex flex-col gap-3 max-w-xs w-80">
         <SearchBar onFlightSelect={handleFlightSelect} onAirportSelect={handleAirportSelect} />
         <FlightListWidget onFlightSelect={handleFlightSelect} selectedFlightId={selectedFlight?.id || null} />
-        <WeatherWidget />
       </div>
 
       {/* Right Panel - Selected Flight Info */}
@@ -280,6 +277,32 @@ const Index = () => {
       </AnimatePresence>
 
       <AIChatbot selectedContext={selectedFlight} initialOpen={openChat} />
+
+      {/* Weather Alerts Dropdown */}
+      <AnimatePresence>
+        {isWeatherAlertsOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsWeatherAlertsOpen(false)}
+              className="fixed inset-0 z-40 bg-background/20 backdrop-blur-sm"
+            />
+            {/* Dropdown */}
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="fixed top-16 right-4 z-50 w-80"
+            >
+              <WeatherWidget onClose={() => setIsWeatherAlertsOpen(false)} />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

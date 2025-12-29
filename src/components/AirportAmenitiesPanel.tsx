@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
 import { Star, Clock, MapPin, Utensils, Coffee, ShoppingBag, Wifi, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getAmenitiesByAirport, Amenity } from '@/data/amenities';
-import { getAirportByCode } from '@/data/airports';
+import { Airport } from '@/data/airports';
 import { cn } from '@/lib/utils';
 
 interface AirportAmenitiesPanelProps {
@@ -11,12 +12,52 @@ interface AirportAmenitiesPanelProps {
 }
 
 export const AirportAmenitiesPanel = ({ airportCode, onClose }: AirportAmenitiesPanelProps) => {
-  if (!airportCode) return null;
+  const [airport, setAirport] = useState<Airport | null>(null);
 
-  const airport = getAirportByCode(airportCode);
+  useEffect(() => {
+    if (!airportCode) {
+      setAirport(null);
+      return;
+    }
+
+    // Fetch airport from API
+    const fetchAirport = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/airports');
+        const data = await response.json();
+        if (data.airports) {
+          const found = data.airports.find((ap: any) => ap.code === airportCode);
+          if (found) {
+            setAirport({
+              code: found.code || '',
+              name: found.name || 'Unknown Airport',
+              city: found.city || 'Unknown City',
+              lat: found.lat || 0,
+              lng: found.lng || 0,
+              terminal: found.terminal || 1,
+              amenities: {
+                restaurants: found.amenities?.restaurants || 0,
+                lounges: found.amenities?.lounges || 0,
+                shops: found.amenities?.shops || 0,
+                services: found.amenities?.services || 0
+              }
+            });
+          } else {
+            setAirport(null);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch airport:", error);
+        setAirport(null);
+      }
+    };
+
+    fetchAirport();
+  }, [airportCode]);
+
+  if (!airportCode || !airport) return null;
+
   const amenities = getAmenitiesByAirport(airportCode);
-
-  if (!airport) return null;
 
   const getTypeIcon = (type: Amenity['type']) => {
     switch (type) {

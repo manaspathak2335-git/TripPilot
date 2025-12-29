@@ -1,17 +1,22 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Plane, Search, Menu, X, Bell, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 interface HeaderProps {
   onMenuToggle: () => void;
   isMenuOpen: boolean;
+  onNotificationClick?: () => void;
 }
 export const Header = ({
   onMenuToggle,
-  isMenuOpen
+  isMenuOpen,
+  onNotificationClick
 }: HeaderProps) => {
   const [hasNotification] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
   return <header className="fixed top-0 left-0 right-0 z-50 glass-strong border-b border-border/50">
       <div className="flex items-center justify-between px-4 py-3 lg:px-6">
         {/* Logo */}
@@ -42,14 +47,38 @@ export const Header = ({
 
         {/* Navigation - Desktop */}
         <nav className="hidden lg:flex items-center gap-1">
-          {['Flights', 'Airports'].map(item => <Button key={item} variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground hover:bg-muted/50">
-              {item}
-            </Button>)}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => navigate('/flights')}
+            className={cn(
+              "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+              (location.pathname === '/flights' || location.pathname === '/map') && "text-foreground bg-muted/50"
+            )}
+          >
+            Flights
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => navigate('/airports')}
+            className={cn(
+              "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+              location.pathname === '/airports' && "text-foreground bg-muted/50"
+            )}
+          >
+            Airports
+          </Button>
         </nav>
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="relative text-muted-foreground hover:text-foreground"
+            onClick={onNotificationClick}
+          >
             <Bell className="w-5 h-5" />
             {hasNotification && <span className="absolute top-1 right-1 w-2 h-2 bg-warning rounded-full animate-pulse" />}
           </Button>
@@ -68,9 +97,32 @@ export const Header = ({
       duration: 0.2
     }} className={cn("lg:hidden overflow-hidden border-t border-border/50", !isMenuOpen && "pointer-events-none")}>
         <nav className="flex flex-col p-4 gap-2">
-          {['Flights', 'Airports', 'Weather', 'Alerts'].map(item => <Button key={item} variant="ghost" className="justify-start text-muted-foreground hover:text-foreground">
-              {item}
-            </Button>)}
+          <Button 
+            variant="ghost" 
+            className="justify-start text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              navigate('/flights');
+              onMenuToggle();
+            }}
+          >
+            Flights
+          </Button>
+          <Button 
+            variant="ghost" 
+            className="justify-start text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              navigate('/airports');
+              onMenuToggle();
+            }}
+          >
+            Airports
+          </Button>
+          <Button variant="ghost" className="justify-start text-muted-foreground hover:text-foreground">
+            Weather
+          </Button>
+          <Button variant="ghost" className="justify-start text-muted-foreground hover:text-foreground">
+            Alerts
+          </Button>
         </nav>
       </motion.div>
     </header>;

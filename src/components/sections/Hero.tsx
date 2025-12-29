@@ -72,7 +72,7 @@ export const Hero = () => {
                 className="group relative px-8 py-6 text-lg font-semibold bg-primary hover:bg-primary/90 glow-primary transition-all duration-300"
                 onClick={() => {
                   if (isAuthenticated) {
-                    navigate('/map');
+                    navigate('/flights');
                   } else {
                     navigate('/signup');
                   }
@@ -84,7 +84,7 @@ export const Hero = () => {
             <Button
               variant="outline"
               size="lg"
-              onClick={() => navigate('/map')}
+              onClick={() => navigate('/flights')}
               className="px-8 py-6 text-lg font-semibold border-border/50 bg-card/50 backdrop-blur-sm hover:bg-card/80 hover:border-primary/50 transition-all duration-300"
             >
               <Plane className="mr-2 w-5 h-5" />

@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Flight } from '@/data/flights';
-import { airports } from '@/data/airports';
+import { airports, Airport } from '@/data/airports';
 import { getWeatherByAirport } from '@/data/weather';
 
 interface FlightMapProps {
   selectedFlight: Flight | null;
   onFlightSelect: (flight: Flight) => void;
   selectedAirportCode: string | null;
+  onAirportSelect?: (airport: Airport) => void;
+  showFlights?: boolean;
 }
 
 const getStatusColor = (status: string) => {
@@ -29,7 +31,7 @@ const getSeverityColor = (severity: string) => {
   }
 };
 
-export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode }: FlightMapProps) {
+export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode, onAirportSelect, showFlights = true }: FlightMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
@@ -37,9 +39,53 @@ export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode 
 
   // State for Live API Data
   const [liveFlights, setLiveFlights] = useState<Flight[]>([]);
+  const [apiAirports, setApiAirports] = useState<Airport[]>([]);
 
-  // 1. Fetch Real Data from Python Backend
+  // 1. Fetch Airports from AviationStack API
   useEffect(() => {
+    const fetchAirports = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/airports');
+        const data = await response.json();
+        
+        if (data.airports && data.airports.length > 0) {
+          // Transform API data to Airport format
+          const transformedAirports: Airport[] = data.airports.map((ap: any) => ({
+            code: ap.code || '',
+            name: ap.name || 'Unknown Airport',
+            city: ap.city || 'Unknown City',
+            lat: ap.lat || 0,
+            lng: ap.lng || 0,
+            terminal: 1, // Default, API doesn't provide this
+            amenities: {
+              restaurants: 0,
+              lounges: 0,
+              shops: 0,
+              services: 0
+            }
+          }));
+          setApiAirports(transformedAirports);
+        }
+      } catch (error) {
+        console.error("Failed to fetch airports:", error);
+        // Fallback to static airports if API fails
+        setApiAirports([]);
+      }
+    };
+
+    fetchAirports();
+    // Refresh airports every 5 minutes (they don't change often)
+    const interval = setInterval(fetchAirports, 300000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 2. Fetch Real Data from Python Backend (only if showFlights is true)
+  useEffect(() => {
+    if (!showFlights) {
+      setLiveFlights([]);
+      return;
+    }
+
     const fetchLiveFlights = async () => {
       try {
         const response = await fetch('http://localhost:8000/api/flights/active');
@@ -71,11 +117,11 @@ export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode 
     };
 
     fetchLiveFlights();
-    const interval = setInterval(fetchLiveFlights, 15000); // Poll every 5s
+    const interval = setInterval(fetchLiveFlights, 15000); // Poll every 15s
     return () => clearInterval(interval);
-  }, []);
+  }, [showFlights]);
 
-  // 2. Initialize Map
+  // 3. Initialize Map
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
@@ -115,7 +161,7 @@ export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode 
     };
   }, []);
 
-  // 3. Update Markers (Airports + Flights)
+  // 4. Update Markers (Airports + Flights)
   useEffect(() => {
     if (!map.current) return;
 
@@ -125,30 +171,54 @@ export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode 
     airportMarkersRef.current.forEach(m => m.remove());
     airportMarkersRef.current = [];
 
-    // Add Airport Markers (Static)
-    airports.forEach((airport) => {
+    // Use API airports if available, otherwise fallback to static airports
+    const airportsToDisplay = apiAirports.length > 0 ? apiAirports : airports;
+
+    // Add Airport Markers - Make them more prominent when flights are hidden
+    airportsToDisplay.forEach((airport) => {
       const weather = getWeatherByAirport(airport.code);
       const severity = weather?.severity || 'green';
       const borderColor = getSeverityColor(severity);
+      const isSelected = selectedAirportCode === airport.code;
+      const size = showFlights ? 28 : (isSelected ? 40 : 36);
+      const borderWidth = showFlights ? 3 : (isSelected ? 4 : 3);
 
       const el = document.createElement('div');
       el.className = 'airport-marker';
+      el.style.cursor = 'pointer';
       el.innerHTML = `
-        <div style="width:28px;height:28px;background:#1e293b;border:3px solid ${borderColor};border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+        <div style="width:${size}px;height:${size}px;background:#1e293b;border:${borderWidth}px solid ${borderColor};border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:all 0.2s;">
+          <svg width="${size * 0.5}" height="${size * 0.5}" viewBox="0 0 24 24" fill="white">
             <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
           </svg>
         </div>
       `;
+
+      el.addEventListener('click', () => {
+        // Trigger airport selection if there's a handler
+        if (onAirportSelect) {
+          onAirportSelect(airport);
+        }
+      });
+
+      const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`
+        <div style="padding:8px;background:#0f172a;color:white;border-radius:8px;font-family:system-ui;">
+          <strong style="font-size:14px;">${airport.code}</strong>
+          <p style="margin:4px 0 0;font-size:12px;">${airport.name}</p>
+          <p style="margin:2px 0 0;font-size:11px;color:#94a3b8;">${airport.city}</p>
+        </div>
+      `);
       
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat([airport.lng, airport.lat])
+        .setPopup(popup)
         .addTo(map.current!);
       airportMarkersRef.current.push(marker);
     });
 
-    // Add LIVE Flight Markers
-    liveFlights.forEach((flight) => {
+    // Add LIVE Flight Markers (only if showFlights is true)
+    if (showFlights) {
+      liveFlights.forEach((flight) => {
       const color = getStatusColor(flight.status);
       const rotation = (flight.heading || 0) - 90; 
 
@@ -179,8 +249,9 @@ export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode 
         .addTo(map.current!);
 
       markersRef.current.push(marker);
-    });
-  }, [liveFlights, onFlightSelect]); 
+      });
+    }
+  }, [liveFlights, onFlightSelect, onAirportSelect, showFlights, selectedAirportCode, apiAirports]); 
 
   return <div ref={mapContainer} className="w-full h-full" />;
 }

@@ -18,7 +18,7 @@ export function PublicRoute({ children }: PublicRouteProps) {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/map" replace />;
+    return <Navigate to="/flights" replace />;
   }
 
   return <>{children}</>;
