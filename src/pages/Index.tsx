@@ -33,9 +33,37 @@ const Index = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleFlightSelect = (flight: Flight) => {
-    setSelectedFlight(flight);
+  const handleFlightSelect = async (flight: Flight) => {
     setSelectedAirportCode(null);
+
+    // Local mock pairs in case backend is unreachable
+    const mockPairs: [string, string][] = [
+      ["Indira Gandhi International Airport, Delhi", "Chhatrapati Shivaji Maharaj International, Mumbai"],
+      ["Kempegowda International Airport, Bangalore", "Chennai International Airport"],
+      ["Netaji Subhas Chandra Bose Intl, Kolkata", "Rajiv Gandhi International Airport, Hyderabad"],
+    ];
+
+    try {
+      const res = await fetch('http://localhost:8000/api/track-flight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ icao24: flight.id })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const origin = data.flight_info?.origin || flight.origin || mockPairs[Math.floor(Math.random()*mockPairs.length)][0];
+        const destination = data.flight_info?.destination || flight.destination || mockPairs[Math.floor(Math.random()*mockPairs.length)][1];
+        setSelectedFlight({ ...flight, origin, destination, raw_route: data.raw_route });
+        return;
+      }
+    } catch (e) {
+      console.error('Failed to fetch route from backend, using mock:', e);
+    }
+
+    // Fallback to existing flight values or a random mock pair
+    const pair = mockPairs[Math.floor(Math.random()*mockPairs.length)];
+    setSelectedFlight({ ...flight, origin: flight.origin !== 'Unknown' ? flight.origin : pair[0], destination: flight.destination !== 'Unknown' ? flight.destination : pair[1] });
   };
 
   const handleAirportSelect = (airport: Airport) => {
@@ -51,6 +79,27 @@ const Index = () => {
       hour12: false,
       timeZone: 'Asia/Kolkata'
     });
+  };
+
+  // Extract a probable city from an airport string like "Airport Name, City"
+  const parseCityFromName = (name: string | undefined) => {
+    if (!name) return 'Unknown';
+    const parts = name.split(',');
+    if (parts.length > 1) return parts[parts.length - 1].trim();
+    // fallback heuristics
+    const words = name.split(' ');
+    return words.length > 0 ? words[words.length - 1] : name;
+  };
+
+  const getMockWeatherForCity = (city: string) => {
+    const c = (city || '').toLowerCase();
+    if (c.includes('delhi')) return { icon: '☀️', condition: 'Sunny', temperature: 28, severity: 'green' };
+    if (c.includes('mumbai')) return { icon: '⛅', condition: 'Partly Cloudy', temperature: 30, severity: 'yellow' };
+    if (c.includes('bangalore') || c.includes('bengaluru')) return { icon: '🌧️', condition: 'Showers', temperature: 22, severity: 'yellow' };
+    if (c.includes('chennai')) return { icon: '☁️', condition: 'Humid', temperature: 33, severity: 'yellow' };
+    if (c.includes('hyderabad')) return { icon: '⛅', condition: 'Cloudy', temperature: 31, severity: 'yellow' };
+    if (c.includes('kolkata')) return { icon: '⛈️', condition: 'Thunderstorms', temperature: 29, severity: 'red' };
+    return { icon: '☀️', condition: 'Clear', temperature: 25, severity: 'green' };
   };
 
   const [liveFlightsCount, setLiveFlightsCount] = useState<number>(
@@ -179,8 +228,19 @@ const Index = () => {
               <div className="p-4 border-b border-border/50">
                 <div className="flex items-center justify-between">
                   <div className="text-center">
-                    <div className="font-mono text-2xl font-bold">{selectedFlight.origin}</div>
+                    <div className="font-mono text-sm font-bold max-w-[11rem]">{selectedFlight.origin}</div>
                     <div className="text-xs text-muted-foreground mt-1">{selectedFlight.departureTime}</div>
+                    {/* Mock weather for origin city */}
+                    {(() => {
+                      const city = parseCityFromName(selectedFlight.origin);
+                      const w = getMockWeatherForCity(city);
+                      return (
+                        <div className="text-xs text-muted-foreground mt-2 flex items-center justify-center gap-2">
+                          <span className="text-sm">{w.icon}</span>
+                          <span>{w.condition} · {w.temperature}°C</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div className="flex-1 mx-4">
                     <div className="relative h-0.5 bg-gradient-to-r from-primary via-primary/50 to-muted">
@@ -197,8 +257,19 @@ const Index = () => {
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="font-mono text-2xl font-bold">{selectedFlight.destination}</div>
+                    <div className="font-mono text-sm font-bold max-w-[11rem]">{selectedFlight.destination}</div>
                     <div className="text-xs text-muted-foreground mt-1">{selectedFlight.arrivalTime}</div>
+                    {/* Mock weather for destination city */}
+                    {(() => {
+                      const city = parseCityFromName(selectedFlight.destination);
+                      const w = getMockWeatherForCity(city);
+                      return (
+                        <div className="text-xs text-muted-foreground mt-2 flex items-center justify-center gap-2">
+                          <span className="text-sm">{w.icon}</span>
+                          <span>{w.condition} · {w.temperature}°C</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

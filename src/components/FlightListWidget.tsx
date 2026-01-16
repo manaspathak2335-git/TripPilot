@@ -61,6 +61,7 @@ export const FlightListWidget = ({ onFlightSelect, selectedFlightId }: FlightLis
           <Plane className="w-4 h-4 text-primary" />
           Live Flights
         </h3>
+        {/* MERGE FIX: Kept your Loading/Count indicator */}
         <div className="flex items-center gap-2">
           {loading && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
           <span className="text-xs text-muted-foreground font-mono">

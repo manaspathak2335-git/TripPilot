@@ -1,10 +1,86 @@
 import { motion } from 'framer-motion';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Star, Clock, MapPin, Utensils, Coffee, ShoppingBag, Wifi, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getAmenitiesByAirport, Amenity } from '@/data/amenities';
 import { Airport } from '@/data/airports';
 import { cn } from '@/lib/utils';
+
+// Generate mock amenities for airports that don't have them
+const generateMockAmenities = (airportCode: string, city: string): Amenity[] => {
+  const terminal = 'T1';
+  const restaurants = [
+    { name: `${city} Bistro`, description: 'Multi-cuisine restaurant', icon: '🍽️', rating: 4.2 },
+    { name: 'Coffee Corner', description: 'Fresh coffee and pastries', icon: '☕', rating: 4.0 },
+    { name: 'Food Court', description: 'Quick service dining options', icon: '🍔', rating: 3.8 },
+  ];
+  
+  const lounges = [
+    { name: 'Premium Lounge', description: 'Relaxation area with snacks', icon: '🛋️', rating: 4.3 },
+  ];
+  
+  const shops = [
+    { name: 'Duty Free Shop', description: 'Perfumes, cosmetics, and spirits', icon: '🛍️', rating: 4.1 },
+    { name: 'Bookstore', description: 'Books, magazines, and travel guides', icon: '📚', rating: 4.0 },
+    { name: 'Souvenir Shop', description: 'Local handicrafts and gifts', icon: '🎁', rating: 3.9 },
+  ];
+  
+  const services = [
+    { name: 'ATM & Banking', description: '24-hour banking services', icon: '🏧', rating: 4.0 },
+    { name: 'Medical Center', description: 'Emergency medical services', icon: '🏥', rating: 4.5 },
+    { name: 'Prayer Room', description: 'Multi-faith prayer facility', icon: '🙏', rating: 4.8 },
+    { name: 'Free WiFi', description: 'High-speed internet access', icon: '📶', rating: 4.2 },
+  ];
+
+  const mockAmenities: Amenity[] = [
+    ...restaurants.map((r, i) => ({
+      id: `${airportCode.toLowerCase()}-rest-${i + 1}`,
+      name: r.name,
+      type: 'restaurant' as const,
+      airportCode,
+      terminal,
+      rating: r.rating,
+      description: r.description,
+      hours: '6AM - 11PM',
+      icon: r.icon,
+    })),
+    ...lounges.map((l, i) => ({
+      id: `${airportCode.toLowerCase()}-lounge-${i + 1}`,
+      name: l.name,
+      type: 'lounge' as const,
+      airportCode,
+      terminal,
+      rating: l.rating,
+      description: l.description,
+      hours: '24/7',
+      icon: l.icon,
+    })),
+    ...shops.map((s, i) => ({
+      id: `${airportCode.toLowerCase()}-shop-${i + 1}`,
+      name: s.name,
+      type: 'shop' as const,
+      airportCode,
+      terminal,
+      rating: s.rating,
+      description: s.description,
+      hours: '24/7',
+      icon: s.icon,
+    })),
+    ...services.map((s, i) => ({
+      id: `${airportCode.toLowerCase()}-service-${i + 1}`,
+      name: s.name,
+      type: 'service' as const,
+      airportCode,
+      terminal: 'All',
+      rating: s.rating,
+      description: s.description,
+      hours: '24/7',
+      icon: s.icon,
+    })),
+  ];
+
+  return mockAmenities;
+};
 
 interface AirportAmenitiesPanelProps {
   airportCode: string | null;
@@ -13,13 +89,16 @@ interface AirportAmenitiesPanelProps {
 
 export const AirportAmenitiesPanel = ({ airportCode, onClose }: AirportAmenitiesPanelProps) => {
   const [airport, setAirport] = useState<Airport | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!airportCode) {
       setAirport(null);
+      setIsLoading(false);
       return;
     }
 
+    setIsLoading(true);
     // Fetch airport from API
     const fetchAirport = async () => {
       try {
@@ -28,36 +107,103 @@ export const AirportAmenitiesPanel = ({ airportCode, onClose }: AirportAmenities
         if (data.airports) {
           const found = data.airports.find((ap: any) => ap.code === airportCode);
           if (found) {
+            // Check if we have existing amenities or need to generate mock ones
+            const existingAmenities = getAmenitiesByAirport(airportCode);
+            const hasExistingAmenities = existingAmenities.length > 0;
+            
+            // Calculate amenity counts (use existing if available, otherwise use mock counts)
+            const mockAmenities = hasExistingAmenities ? [] : generateMockAmenities(
+              found.code || airportCode, 
+              found.city || 'Unknown City'
+            );
+            const totalAmenities = hasExistingAmenities ? existingAmenities : mockAmenities;
+            
+            const restaurantCount = totalAmenities.filter(a => a.type === 'restaurant').length;
+            const loungeCount = totalAmenities.filter(a => a.type === 'lounge').length;
+            const shopCount = totalAmenities.filter(a => a.type === 'shop').length;
+            const serviceCount = totalAmenities.filter(a => a.type === 'service').length;
+            
             setAirport({
-              code: found.code || '',
-              name: found.name || 'Unknown Airport',
+              code: found.code || airportCode,
+              name: found.name || `${airportCode} Airport`,
               city: found.city || 'Unknown City',
               lat: found.lat || 0,
               lng: found.lng || 0,
               terminal: found.terminal || 1,
               amenities: {
-                restaurants: found.amenities?.restaurants || 0,
-                lounges: found.amenities?.lounges || 0,
-                shops: found.amenities?.shops || 0,
-                services: found.amenities?.services || 0
+                restaurants: found.amenities?.restaurants || restaurantCount,
+                lounges: found.amenities?.lounges || loungeCount,
+                shops: found.amenities?.shops || shopCount,
+                services: found.amenities?.services || serviceCount
               }
             });
           } else {
-            setAirport(null);
+            // Airport not found in API, create a basic airport object with mock amenities
+            const mockAmenities = generateMockAmenities(airportCode, airportCode);
+            const restaurantCount = mockAmenities.filter(a => a.type === 'restaurant').length;
+            const loungeCount = mockAmenities.filter(a => a.type === 'lounge').length;
+            const shopCount = mockAmenities.filter(a => a.type === 'shop').length;
+            const serviceCount = mockAmenities.filter(a => a.type === 'service').length;
+            
+            setAirport({
+              code: airportCode,
+              name: `${airportCode} Airport`,
+              city: airportCode,
+              lat: 0,
+              lng: 0,
+              terminal: 1,
+              amenities: {
+                restaurants: restaurantCount,
+                lounges: loungeCount,
+                shops: shopCount,
+                services: serviceCount
+              }
+            });
           }
         }
       } catch (error) {
         console.error("Failed to fetch airport:", error);
-        setAirport(null);
+        // On error, still create a basic airport object so panel can display
+        const mockAmenities = generateMockAmenities(airportCode, airportCode);
+        const restaurantCount = mockAmenities.filter(a => a.type === 'restaurant').length;
+        const loungeCount = mockAmenities.filter(a => a.type === 'lounge').length;
+        const shopCount = mockAmenities.filter(a => a.type === 'shop').length;
+        const serviceCount = mockAmenities.filter(a => a.type === 'service').length;
+        
+        setAirport({
+          code: airportCode,
+          name: `${airportCode} Airport`,
+          city: airportCode,
+          lat: 0,
+          lng: 0,
+          terminal: 1,
+          amenities: {
+            restaurants: restaurantCount,
+            lounges: loungeCount,
+            shops: shopCount,
+            services: serviceCount
+          }
+        });
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchAirport();
   }, [airportCode]);
 
-  if (!airportCode || !airport) return null;
+  if (!airportCode) return null;
 
-  const amenities = getAmenitiesByAirport(airportCode);
+  // Get existing amenities or generate mock ones if none exist
+  const existingAmenities = getAmenitiesByAirport(airportCode);
+  const amenities = useMemo(() => {
+    if (!airport) return [];
+    if (existingAmenities.length > 0) {
+      return existingAmenities;
+    }
+    // Generate mock amenities for airports without data
+    return generateMockAmenities(airportCode, airport.city);
+  }, [airportCode, airport?.city, existingAmenities, airport]);
 
   const getTypeIcon = (type: Amenity['type']) => {
     switch (type) {
@@ -96,13 +242,22 @@ export const AirportAmenitiesPanel = ({ airportCode, onClose }: AirportAmenities
       <div className="sticky top-0 glass-strong border-b border-border/50 p-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-2xl font-bold">{airport.code}</span>
-              <span className="text-xs text-muted-foreground px-2 py-0.5 bg-muted rounded-full">
-                Terminal {airport.terminal}
-              </span>
-            </div>
-            <p className="text-sm text-muted-foreground mt-1">{airport.name}</p>
+            {isLoading ? (
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-2xl font-bold">{airportCode}</span>
+                <span className="text-xs text-muted-foreground">Loading...</span>
+              </div>
+            ) : airport ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-2xl font-bold">{airport.code}</span>
+                  <span className="text-xs text-muted-foreground px-2 py-0.5 bg-muted rounded-full">
+                    Terminal {airport.terminal}
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">{airport.name}</p>
+              </>
+            ) : null}
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} className="text-muted-foreground">
             <X className="w-5 h-5" />
@@ -110,27 +265,35 @@ export const AirportAmenitiesPanel = ({ airportCode, onClose }: AirportAmenities
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-2 mt-4">
-          <div className="text-center p-2 rounded-lg bg-muted/30">
-            <p className="text-lg font-bold">{airport.amenities.restaurants}</p>
-            <p className="text-xs text-muted-foreground">Food</p>
+        {airport && (
+          <div className="grid grid-cols-4 gap-2 mt-4">
+            <div className="text-center p-2 rounded-lg bg-muted/30">
+              <p className="text-lg font-bold">{airport.amenities.restaurants}</p>
+              <p className="text-xs text-muted-foreground">Food</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-muted/30">
+              <p className="text-lg font-bold">{airport.amenities.lounges}</p>
+              <p className="text-xs text-muted-foreground">Lounges</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-muted/30">
+              <p className="text-lg font-bold">{airport.amenities.shops}</p>
+              <p className="text-xs text-muted-foreground">Shops</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-muted/30">
+              <p className="text-lg font-bold">{airport.amenities.services}</p>
+              <p className="text-xs text-muted-foreground">Services</p>
+            </div>
           </div>
-          <div className="text-center p-2 rounded-lg bg-muted/30">
-            <p className="text-lg font-bold">{airport.amenities.lounges}</p>
-            <p className="text-xs text-muted-foreground">Lounges</p>
-          </div>
-          <div className="text-center p-2 rounded-lg bg-muted/30">
-            <p className="text-lg font-bold">{airport.amenities.shops}</p>
-            <p className="text-xs text-muted-foreground">Shops</p>
-          </div>
-          <div className="text-center p-2 rounded-lg bg-muted/30">
-            <p className="text-lg font-bold">{airport.amenities.services}</p>
-            <p className="text-xs text-muted-foreground">Services</p>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Amenities List */}
+      {!airport && isLoading && (
+        <div className="p-4 text-center text-muted-foreground">
+          Loading airport information...
+        </div>
+      )}
+      {airport && (
       <div className="p-4 space-y-6">
         {Object.entries(groupedAmenities).map(([type, items]) => {
           if (items.length === 0) return null;
@@ -186,6 +349,7 @@ export const AirportAmenitiesPanel = ({ airportCode, onClose }: AirportAmenities
           );
         })}
       </div>
+      )}
     </motion.div>
   );
 };

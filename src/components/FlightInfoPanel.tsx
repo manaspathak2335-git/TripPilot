@@ -30,6 +30,26 @@ export const FlightInfoPanel = ({ flight, onClose }: FlightInfoPanelProps) => {
     return styles[status as keyof typeof styles] || 'bg-muted text-muted-foreground';
   };
 
+  // Helpers for mock city weather (fallback when real airport weather not available)
+  const parseCityFromName = (name: string | undefined) => {
+    if (!name) return 'Unknown';
+    const parts = name.split(',');
+    if (parts.length > 1) return parts[parts.length - 1].trim();
+    const words = name.split(' ');
+    return words.length > 0 ? words[words.length - 1] : name;
+  };
+
+  const getMockWeatherForCity = (city: string) => {
+    const c = (city || '').toLowerCase();
+    if (c.includes('delhi')) return { icon: '☀️', condition: 'Sunny', temperature: 28, severity: 'green' };
+    if (c.includes('mumbai')) return { icon: '⛅', condition: 'Partly Cloudy', temperature: 30, severity: 'yellow' };
+    if (c.includes('bangalore') || c.includes('bengaluru')) return { icon: '🌧️', condition: 'Showers', temperature: 22, severity: 'yellow' };
+    if (c.includes('chennai')) return { icon: '☁️', condition: 'Humid', temperature: 33, severity: 'yellow' };
+    if (c.includes('hyderabad')) return { icon: '⛅', condition: 'Cloudy', temperature: 31, severity: 'yellow' };
+    if (c.includes('kolkata')) return { icon: '⛈️', condition: 'Thunderstorms', temperature: 29, severity: 'red' };
+    return { icon: '☀️', condition: 'Clear', temperature: 25, severity: 'green' };
+  };
+
   return (
     <motion.div
       initial={{ x: '100%', opacity: 0 }}
@@ -70,6 +90,16 @@ export const FlightInfoPanel = ({ flight, onClose }: FlightInfoPanelProps) => {
             <p className="font-mono text-2xl font-bold">{flight.origin}</p>
             <p className="text-xs text-muted-foreground">{originAirport?.city}</p>
             <p className="text-lg font-semibold mt-1">{flight.departureTime}</p>
+            {(() => {
+              const city = originAirport?.city || parseCityFromName(flight.origin);
+              const w = getMockWeatherForCity(city);
+              return (
+                <div className="text-xs text-muted-foreground mt-2 flex items-center justify-center gap-2">
+                  <span className="text-sm">{w.icon}</span>
+                  <span>{w.condition} · {w.temperature}°C</span>
+                </div>
+              );
+            })()}
             <p className="text-xs text-muted-foreground">{flight.gate}</p>
           </div>
           
@@ -94,9 +124,19 @@ export const FlightInfoPanel = ({ flight, onClose }: FlightInfoPanelProps) => {
           </div>
 
           <div className="text-center flex-1">
-            <p className="font-mono text-2xl font-bold">{flight.destination}</p>
+            <p className="font-mono text-sm font-bold max-w-[12rem]">{flight.destination}</p>
             <p className="text-xs text-muted-foreground">{destAirport?.city}</p>
             <p className="text-lg font-semibold mt-1">{flight.arrivalTime}</p>
+            {(() => {
+              const city = destAirport?.city || parseCityFromName(flight.destination);
+              const w = getMockWeatherForCity(city);
+              return (
+                <div className="text-xs text-muted-foreground mt-2 flex items-center justify-center gap-2">
+                  <span className="text-sm">{w.icon}</span>
+                  <span>{w.condition} · {w.temperature}°C</span>
+                </div>
+              );
+            })()}
             <p className="text-xs text-muted-foreground">{flight.terminal}</p>
           </div>
         </div>

@@ -11,6 +11,7 @@ interface FlightMapProps {
   selectedAirportCode: string | null;
   onAirportSelect?: (airport: Airport) => void;
   showFlights?: boolean;
+  showAirports?: boolean;
 }
 
 const getStatusColor = (status: string) => {
@@ -31,7 +32,7 @@ const getSeverityColor = (severity: string) => {
   }
 };
 
-export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode, onAirportSelect, showFlights = true }: FlightMapProps) {
+export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode, onAirportSelect, showFlights = true, showAirports = true }: FlightMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
@@ -103,7 +104,6 @@ export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode,
     };
 
     fetchLiveFlights();
-    // This was the conflict line - we keep your comment/style
     const interval = setInterval(fetchLiveFlights, 15000); // Poll every 15s to match backend
     return () => clearInterval(interval);
   }, [showFlights]);
@@ -155,30 +155,35 @@ export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode,
 
     const airportsToDisplay = apiAirports.length > 0 ? apiAirports : airports;
 
-    // Airport Markers
-    airportsToDisplay.forEach((airport) => {
-      const weather = getWeatherByAirport(airport.code);
-      const severity = weather?.severity || 'green';
-      const borderColor = getSeverityColor(severity);
-      const isSelected = selectedAirportCode === airport.code;
-      const size = showFlights ? 28 : (isSelected ? 40 : 36);
+    // MERGE FIX: Accepted Teammate's 'showAirports' check
+    if (showAirports) {
+      airportsToDisplay.forEach((airport) => {
+        const weather = getWeatherByAirport(airport.code);
+        const severity = weather?.severity || 'green';
+        const borderColor = getSeverityColor(severity);
+        const isSelected = selectedAirportCode === airport.code;
+        const size = showFlights ? 28 : (isSelected ? 40 : 36);
 
-      const el = document.createElement('div');
-      el.className = 'airport-marker';
-      el.style.cursor = 'pointer';
-      el.innerHTML = `
-        <div style="width:${size}px;height:${size}px;background:#1e293b;border:3px solid ${borderColor};border-radius:50%;display:flex;align-items:center;justify-content:center;">
-          <svg width="${size * 0.5}" height="${size * 0.5}" viewBox="0 0 24 24" fill="white">
-            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-          </svg>
-        </div>
-      `;
-      el.addEventListener('click', () => onAirportSelect && onAirportSelect(airport));
+        const el = document.createElement('div');
+        el.className = 'airport-marker';
+        el.style.cursor = 'pointer';
+        el.innerHTML = `
+          <div style="width:${size}px;height:${size}px;background:#1e293b;border:3px solid ${borderColor};border-radius:50%;display:flex;align-items:center;justify-content:center;">
+            <svg width="${size * 0.5}" height="${size * 0.5}" viewBox="0 0 24 24" fill="white">
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+            </svg>
+          </div>
+        `;
+        el.addEventListener('click', () => onAirportSelect && onAirportSelect(airport));
 
-      new maplibregl.Marker({ element: el })
-        .setLngLat([airport.lng, airport.lat])
-        .addTo(map.current!);
-    });
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat([airport.lng, airport.lat])
+          .addTo(map.current!);
+        
+        // MERGE FIX: Ensure we push to the ref array so cleanup works later
+        airportMarkersRef.current.push(marker);
+      });
+    }
 
     // Flight Markers
     if (showFlights) {
@@ -212,7 +217,7 @@ export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode,
         markersRef.current.push(marker);
       });
     }
-  }, [liveFlights, onFlightSelect, onAirportSelect, showFlights, selectedAirportCode, apiAirports]); 
+  }, [liveFlights, onFlightSelect, onAirportSelect, showFlights, showAirports, selectedAirportCode, apiAirports]); 
 
   return <div ref={mapContainer} className="w-full h-full" />;
 }

@@ -19,6 +19,8 @@ export interface Flight {
   speed: number;
   heading: number;
   progress: number;
+  // Optional raw route/debug data returned from backend
+  raw_route?: any;
 }
 
 export const flights: Flight[] = [

@@ -31,6 +31,7 @@ const AirportPage = () => {
   }, []);
 
   const handleAirportSelect = (airport: Airport) => {
+    console.log('Airport selected in AirportPage:', airport);
     setSelectedAirportCode(airport.code);
   };
 
@@ -84,6 +85,7 @@ const AirportPage = () => {
           selectedAirportCode={selectedAirportCode}
           onAirportSelect={handleAirportSelect}
           showFlights={false}
+          showAirports={true}
         />
       </div>
 
@@ -155,7 +157,7 @@ const AirportPage = () => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="fixed top-16 right-4 z-50 w-80"
+              className="fixed top-16 right-4 z-50 w-[500px] max-h-[calc(100vh-5rem)]"
             >
               <WeatherWidget onClose={() => setIsWeatherAlertsOpen(false)} />
             </motion.div>
