@@ -4,6 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { Flight } from '@/data/flights';
 import { airports, Airport } from '@/data/airports';
 import { getWeatherByAirport } from '@/data/weather';
+import API_URL from '@/config';
 
 interface FlightMapProps {
   selectedFlight: Flight | null;
@@ -45,7 +46,7 @@ export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode,
   useEffect(() => {
     const fetchAirports = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/airports');
+        const response = await fetch(`${API_URL}/api/airports`);
         const data = await response.json();
         if (data.airports && data.airports.length > 0) {
           setApiAirports(data.airports.map((ap: any) => ({
@@ -75,7 +76,7 @@ export function FlightMap({ selectedFlight, onFlightSelect, selectedAirportCode,
 
     const fetchLiveFlights = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/flights/active');
+        const response = await fetch(`${API_URL}/api/flights/active`);
         const data = await response.json();
         
         // Correct Mapping for FlightRadar Data

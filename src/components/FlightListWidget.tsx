@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Plane, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import API_URL from '@/config';
 import { Flight } from '@/data/flights';
 
 interface FlightListWidgetProps {
@@ -16,7 +17,7 @@ export const FlightListWidget = ({ onFlightSelect, selectedFlightId }: FlightLis
 
   const fetchFlights = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/flights/active');
+      const response = await fetch(`${API_URL}/api/flights/active`);
       const data = await response.json();
       
       if (data.flights) {

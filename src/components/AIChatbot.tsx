@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { auth, db } from '@/lib/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import API_URL from '@/config';
 
 // 1. Import Flight Interface (Matches your Index.tsx)
 import { Flight } from '@/data/flights';
@@ -93,7 +94,7 @@ export const AIChatbot = ({ selectedContext, initialOpen }: AIChatbotProps) => {
 
     try {
       // 4. Send Context to Backend
-      const response = await fetch('http://localhost:8000/api/chat', {
+      const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
