@@ -2,7 +2,7 @@
 
 ## This project is an AI-powered flight tracking and travel assistance platform that integrates real-time flight updates with interactive maps, essential travel information, and AI chatbot–driven personalization.
 
-**URL**: [Visit my website](https://trip-pilot-two.vercel.app/flights)
+**URL**: https://trip-pilot-two.vercel.app/flights
 
 ## Features
 - Display live flights on interactive maps showing source and destination locations along with real-time flight status.
