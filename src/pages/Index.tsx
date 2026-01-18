@@ -12,6 +12,8 @@ import { Flight, flights } from '@/data/flights';
 import { Airport } from '@/data/airports';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plane, Clock, Gauge, Navigation, Home, Map, List, Settings } from 'lucide-react';
+// 1. ADD THIS IMPORT
+import API_URL from '@/config';
 
 const Index = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -36,7 +38,6 @@ const Index = () => {
   const handleFlightSelect = async (flight: Flight) => {
     setSelectedAirportCode(null);
 
-    // Local mock pairs in case backend is unreachable
     const mockPairs: [string, string][] = [
       ["Indira Gandhi International Airport, Delhi", "Chhatrapati Shivaji Maharaj International, Mumbai"],
       ["Kempegowda International Airport, Bangalore", "Chennai International Airport"],
@@ -44,7 +45,8 @@ const Index = () => {
     ];
 
     try {
-      const res = await fetch('http://localhost:8000/api/track-flight', {
+      // 2. FIXED: Use API_URL here too
+      const res = await fetch(`${API_URL}/api/track-flight`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ icao24: flight.id })
@@ -61,7 +63,6 @@ const Index = () => {
       console.error('Failed to fetch route from backend, using mock:', e);
     }
 
-    // Fallback to existing flight values or a random mock pair
     const pair = mockPairs[Math.floor(Math.random()*mockPairs.length)];
     setSelectedFlight({ ...flight, origin: flight.origin !== 'Unknown' ? flight.origin : pair[0], destination: flight.destination !== 'Unknown' ? flight.destination : pair[1] });
   };
@@ -81,12 +82,10 @@ const Index = () => {
     });
   };
 
-  // Extract a probable city from an airport string like "Airport Name, City"
   const parseCityFromName = (name: string | undefined) => {
     if (!name) return 'Unknown';
     const parts = name.split(',');
     if (parts.length > 1) return parts[parts.length - 1].trim();
-    // fallback heuristics
     const words = name.split(' ');
     return words.length > 0 ? words[words.length - 1] : name;
   };
@@ -111,16 +110,16 @@ const Index = () => {
 
     const fetchLiveCount = async () => {
       try {
-        // Use backend API instead of calling OpenSky directly (avoids CORS issues)
-        const res = await fetch('http://localhost:8000/api/flights/active');
+        // 3. FIXED: Use API_URL here (The Main Fix!)
+        const res = await fetch(`${API_URL}/api/flights/active`);
         if (!res.ok) throw new Error('Network response not ok');
         const data = await res.json();
         const activeFlights = data.flights || [];
-        // Count all flights returned from backend (already filtered for India region)
+        
         if (mounted) setLiveFlightsCount(activeFlights.length);
       } catch (err) {
         console.error('Failed to fetch live flight count:', err);
-        // fallback to local static data already set
+        // Fallback logic remains same
         if (mounted) setLiveFlightsCount(flights.filter(f => f.status === 'In Air').length);
       }
     };
@@ -138,7 +137,6 @@ const Index = () => {
         onNotificationClick={() => setIsWeatherAlertsOpen(!isWeatherAlertsOpen)}
       />
 
-      {/* Interactive Map */}
       <div className="fixed inset-0 pt-14">
         <FlightMap
           selectedFlight={selectedFlight}
@@ -149,7 +147,6 @@ const Index = () => {
         />
       </div>
 
-      {/* Top Status Bar */}
       <div className="fixed top-16 left-1/2 -translate-x-1/2 z-20">
         <div className="glass-strong rounded-full px-6 py-2 flex items-center gap-6 border border-border/50">
           <div className="flex items-center gap-2 text-sm">
@@ -164,7 +161,6 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Left Sidebar Nav (hidden when not authenticated) */}
       {isAuthenticated && (
         <nav className="fixed top-24 left-4 z-30 w-12">
           <div className="glass-strong rounded-xl p-2 flex flex-col items-center gap-2 border border-border/50">
@@ -187,13 +183,11 @@ const Index = () => {
         </nav>
       )}
 
-      {/* Left Panel - Search & Flights */}
       <div className="fixed top-24 left-20 z-20 flex flex-col gap-3 max-w-xs w-80">
         <SearchBar onFlightSelect={handleFlightSelect} onAirportSelect={handleAirportSelect} />
         <FlightListWidget onFlightSelect={handleFlightSelect} selectedFlightId={selectedFlight?.id || null} />
       </div>
 
-      {/* Right Panel - Selected Flight Info */}
       <AnimatePresence>
         {selectedFlight && (
           <motion.div
@@ -204,7 +198,6 @@ const Index = () => {
             className="fixed top-24 right-4 z-20 w-80"
           >
             <div className="glass-strong rounded-xl border border-primary/30 overflow-hidden">
-              {/* Header */}
               <div className="bg-gradient-to-r from-primary/20 to-primary/5 p-4 border-b border-border/50">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -225,13 +218,11 @@ const Index = () => {
                 </div>
               </div>
 
-              {/* Route */}
               <div className="p-4 border-b border-border/50">
                 <div className="flex items-center justify-between">
                   <div className="text-center">
                     <div className="font-mono text-sm font-bold max-w-[11rem]">{selectedFlight.origin}</div>
                     <div className="text-xs text-muted-foreground mt-1">{selectedFlight.departureTime}</div>
-                    {/* Mock weather for origin city */}
                     {(() => {
                       const city = parseCityFromName(selectedFlight.origin);
                       const w = getMockWeatherForCity(city);
@@ -260,7 +251,6 @@ const Index = () => {
                   <div className="text-center">
                     <div className="font-mono text-sm font-bold max-w-[11rem]">{selectedFlight.destination}</div>
                     <div className="text-xs text-muted-foreground mt-1">{selectedFlight.arrivalTime}</div>
-                    {/* Mock weather for destination city */}
                     {(() => {
                       const city = parseCityFromName(selectedFlight.destination);
                       const w = getMockWeatherForCity(city);
@@ -275,7 +265,6 @@ const Index = () => {
                 </div>
               </div>
 
-              {/* Status Badge */}
               <div className="px-4 py-3 border-b border-border/50">
                 <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold ${
                   selectedFlight.status === 'In Air' ? 'bg-blue-500/20 text-blue-400' :
@@ -292,7 +281,6 @@ const Index = () => {
                 </div>
               </div>
 
-              {/* Live Data */}
               {selectedFlight.status === 'In Air' && (
                 <div className="p-4 grid grid-cols-3 gap-3">
                   <div className="bg-background/50 rounded-lg p-3 text-center">
@@ -322,7 +310,6 @@ const Index = () => {
                 </div>
               )}
 
-              {/* Gate Info */}
               {(selectedFlight.gate || selectedFlight.terminal) && (
                 <div className="px-4 pb-4">
                   <div className="bg-background/50 rounded-lg p-3 flex items-center justify-between">
@@ -350,11 +337,9 @@ const Index = () => {
 
       <AIChatbot selectedContext={selectedFlight} initialOpen={openChat} />
 
-      {/* Weather Alerts Dropdown */}
       <AnimatePresence>
         {isWeatherAlertsOpen && (
           <>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -362,7 +347,6 @@ const Index = () => {
               onClick={() => setIsWeatherAlertsOpen(false)}
               className="fixed inset-0 z-40 bg-background/20 backdrop-blur-sm"
             />
-            {/* Dropdown */}
             <motion.div
               initial={{ opacity: 0, y: -10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
